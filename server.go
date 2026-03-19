@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/bootdotdev/linko-starter/internal/store"
+	"boot.dev/linko/internal/store"
 )
 
 type server struct {
