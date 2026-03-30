@@ -1,10 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
+	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -25,38 +26,68 @@ func main() {
 	os.Exit(status)
 }
 
-func requestLogger(logger *log.Logger) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r)
-			logger.Printf("Served request: %s %s\n", r.Method, r.URL.Path)
-		})
+type closeFunc func() error
+
+func initializeLogger() (*log.Logger, closeFunc, error) {
+	env := os.Getenv("LINKO_LOG_FILE")
+
+	var logWriter io.Writer
+	var logClose closeFunc
+
+	if env == "" {
+		logWriter = os.Stderr
+		logClose = func() error {
+			return nil
+		}
+	} else {
+		logFile, err := os.OpenFile(env, os.O_WRONLY|os.O_CREATE, 0o644)
+		if err != nil {
+			return nil, nil, err
+		}
+		logFileWriter := bufio.NewWriterSize(logFile, 8192)
+
+		logWriter = io.MultiWriter(
+			logFileWriter, 
+			os.Stderr,
+		)
+
+		logClose = func() error {
+			return logFileWriter.Flush()
+		}
 	}
+
+	logger := log.New(logWriter, "", log.LstdFlags)
+
+	return logger, logClose, nil
 }
 
 func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir string) int {
-	logFile, err := os.Create("linko.access.log")
+	logger, closer, err := initializeLogger()
 	if err != nil {
-		log.Println(err)
-		os.Exit(1)
+	}
+	defer func() {
+		err = closer()
+		if err != nil {
+			os.Stderr.WriteString(err.Error())
+		}
+	}()
+	if err = closer(); err != nil {
+		return 1
 	}
 
-	var accessLogger = log.New(logFile, "INFO: ", log.LstdFlags)
-	var stdLogger = log.New(os.Stderr, "DEBUG: ", log.LstdFlags)
-
-	st, err := store.New(dataDir, stdLogger)
+	st, err := store.New(dataDir, logger)
 	if err != nil {
 		log.Printf("failed to create store: %v\n", err)
 		return 1
 	}
-	s := newServer(*st, httpPort, cancel, accessLogger)
+	s := newServer(*st, httpPort, cancel, logger)
 	var serverErr error
 	go func() {
 		serverErr = s.start()
 	}()
 
 	<-ctx.Done()
-	stdLogger.Println("Linko is shutting down")
+	logger.Println("Linko is shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -68,5 +99,7 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 		log.Printf("server error: %v\n", serverErr)
 		return 1
 	}
+
 	return 0
 }
+
