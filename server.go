@@ -54,7 +54,7 @@ func newServer(store store.Store, port int, cancel context.CancelFunc, logger *s
 }
 
 func (s *server) start() error {
-	s.logger.Info(fmt.Sprintf("Linko is running on http://localhost:%s", s.httpServer.Addr))
+	s.logger.Debug(fmt.Sprintf("Linko is running on http://localhost:%s", s.httpServer.Addr))
 	ln, err := net.Listen("tcp", s.httpServer.Addr)
 	if err != nil {
 		return err
