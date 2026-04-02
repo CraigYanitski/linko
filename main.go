@@ -31,12 +31,17 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 	env := os.Getenv("LINKO_LOG_FILE")
 
 	var logClose closeFunc
+	var logger *slog.Logger
 	var infoHandler *slog.TextHandler
 	debugHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	})
 
 	if env == "" {
+		logger = slog.New(slog.NewMultiHandler(
+			debugHandler,
+		))
+
 		logClose = func() error {
 			return nil
 		}
@@ -51,15 +56,15 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 			Level: slog.LevelInfo,
 		})
 
+		logger = slog.New(slog.NewMultiHandler(
+			debugHandler,
+			infoHandler,
+		))
+
 		logClose = func() error {
 			return logFileWriter.Flush()
 		}
 	}
-
-	logger := slog.New(slog.NewMultiHandler(
-		debugHandler,
-		infoHandler,
-	))
 
 	return logger, logClose, nil
 }
