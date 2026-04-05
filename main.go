@@ -3,7 +3,9 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -11,7 +13,15 @@ import (
 	"time"
 
 	"boot.dev/linko/internal/store"
+	pkgerr "github.com/pkg/errors"
 )
+
+type stackTracer interface {
+	error
+	StackTrace() pkgerr.StackTrace
+}
+
+type closeFunc func() error
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -25,8 +35,6 @@ func main() {
 	os.Exit(status)
 }
 
-type closeFunc func() error
-
 func initializeLogger() (*slog.Logger, closeFunc, error) {
 	env := os.Getenv("LINKO_LOG_FILE")
 
@@ -35,6 +43,7 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 	var infoHandler *slog.JSONHandler
 	debugHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
+		ReplaceAttr: replaceAttr,
 	})
 
 	if env == "" {
@@ -54,6 +63,7 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 		
 		infoHandler = slog.NewJSONHandler(logFileWriter, &slog.HandlerOptions{
 			Level: slog.LevelInfo,
+			ReplaceAttr: replaceAttr,
 		})
 
 		logger = slog.New(slog.NewMultiHandler(
@@ -67,6 +77,30 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 	}
 
 	return logger, logClose, nil
+}
+
+func replaceAttr(groups []string, a slog.Attr) slog.Attr {
+	if a.Key == "error" {
+		err, ok := a.Value.Any().(error)
+		if !ok {
+			return a
+		}
+		if stackErr, ok := errors.AsType[stackTracer](err); ok {
+			return slog.GroupAttrs(
+				"error",
+				slog.Attr{
+					Key:   "message",
+					Value: slog.StringValue(stackErr.Error()),
+				},
+				slog.Attr{
+					Key:   "stack_trace",
+					Value: slog.StringValue(fmt.Sprintf("%+v", stackErr.StackTrace())),
+				},
+			)
+		}
+		return slog.String("error", fmt.Sprintf("%+v", err))
+	}
+	return a
 }
 
 func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir string) int {
