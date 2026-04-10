@@ -43,7 +43,7 @@ func main() {
 }
 
 func initializeLogger() (*slog.Logger, closeFunc, error) {
-	env := os.Getenv("LINKO_LOG_FILE")
+	logName := os.Getenv("LINKO_LOG_FILE")
 
 	var logClose closeFunc
 	var logger *slog.Logger
@@ -53,7 +53,7 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 		ReplaceAttr: replaceAttr,
 	})
 
-	if env == "" {
+	if logName == "" {
 		logger = slog.New(slog.NewMultiHandler(
 			debugHandler,
 		))
@@ -62,7 +62,7 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 			return nil
 		}
 	} else {
-		logFile, err := os.OpenFile(env, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+		logFile, err := os.OpenFile(logName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -83,9 +83,14 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 		}
 	}
 
+	// Set information to print with logger
+	env := os.Getenv("ENV")
+	hostname, _ := os.Hostname()
 	logger = logger.With(
 		slog.String("git_sha", build.GitSHA),
 		slog.String("build_time", build.BuildTime),
+		slog.String("env", env),
+		slog.String("hostname", hostname),
 	)
 
 	return logger, logClose, nil
