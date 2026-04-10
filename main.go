@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"boot.dev/linko/internal/build"
 	"boot.dev/linko/internal/linkoerr"
 	"boot.dev/linko/internal/store"
 	pkgerr "github.com/pkg/errors"
@@ -61,7 +62,7 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 			return nil
 		}
 	} else {
-		logFile, err := os.OpenFile(env, os.O_WRONLY|os.O_CREATE, 0o644)
+		logFile, err := os.OpenFile(env, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -81,6 +82,11 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 			return logFileWriter.Flush()
 		}
 	}
+
+	logger = logger.With(
+		slog.String("git_sha", build.GitSHA),
+		slog.String("build_time", build.BuildTime),
+	)
 
 	return logger, logClose, nil
 }
