@@ -48,11 +48,22 @@ func (w *spyResponseWriter) WriteHeader(statusCode int) {
 func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// initialize request metrics
 			start := time.Now()
+			ctx := &LogContext{}
+			r = r.WithContext(context.WithValue(r.Context(), logContextKey, ctx))
 			spyReader := &spyReadCloser{ReadCloser: r.Body}
 			r.Body = spyReader
 			spyWriter := &spyResponseWriter{ResponseWriter: w}
+
+			// serve request
 			next.ServeHTTP(spyWriter, r)
+
+			// log request
+			u := slog.Attr{}
+			if ctx.Username != "" {
+				u = slog.String("user", ctx.Username)
+			}
 			logger.Info(
 				"Served request", 
 				slog.String("method", r.Method), 
@@ -62,6 +73,7 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 				slog.Int("request_body_bytes", spyReader.bytesRead),
 				slog.Int("response_status", spyWriter.statusCode),
 				slog.Int("response_body_bytes", spyWriter.bytesWritten),
+				u,
 			)
 		})
 	}
