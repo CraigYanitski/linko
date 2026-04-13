@@ -61,8 +61,12 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 
 			// log request
 			u := slog.Attr{}
+			e := slog.Attr{}
 			if ctx.Username != "" {
 				u = slog.String("user", ctx.Username)
+			}
+			if ctx.Error != nil {
+				e = slog.Any("error", ctx.Error)
 			}
 			logger.Info(
 				"Served request", 
@@ -74,9 +78,17 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 				slog.Int("response_status", spyWriter.statusCode),
 				slog.Int("response_body_bytes", spyWriter.bytesWritten),
 				u,
+				e,
 			)
 		})
 	}
+}
+
+func httpError(ctx context.Context, w http.ResponseWriter, err error, status int) {
+	if logCtx, ok := ctx.Value(logContextKey).(*LogContext); ok {
+		logCtx.Error = err
+	}
+	http.Error(w, err.Error(), status)
 }
 
 type server struct {
