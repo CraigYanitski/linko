@@ -15,6 +15,8 @@ import (
 	"boot.dev/linko/internal/build"
 	"boot.dev/linko/internal/linkoerr"
 	"boot.dev/linko/internal/store"
+	"github.com/lmittmann/tint"
+	"github.com/mattn/go-isatty"
 	pkgerr "github.com/pkg/errors"
 )
 
@@ -48,10 +50,9 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 	var logClose closeFunc
 	var logger *slog.Logger
 	var infoHandler *slog.JSONHandler
-	debugHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-		ReplaceAttr: replaceAttr,
-	})
+	isaTTY := isatty.IsCygwinTerminal(os.Stderr.Fd()) || isatty.IsTerminal(os.Stderr.Fd())
+	options := &tint.Options{Level: slog.LevelDebug, ReplaceAttr: replaceAttr, NoColor: !isaTTY}
+	debugHandler := tint.NewHandler(os.Stderr, options)
 
 	if logName == "" {
 		logger = slog.New(slog.NewMultiHandler(
