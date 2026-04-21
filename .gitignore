@@ -1,5 +1,6 @@
 data
-linko
+linko*
 *~
 vendor/
 *.log
+spam*
