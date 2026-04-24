@@ -31,12 +31,12 @@ func (s *server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		username, password, ok := r.BasicAuth()
 		if !ok {
-			httpError(r.Context(), w, errors.New("Unauthorized"), http.StatusUnauthorized)
+			httpError(r.Context(), w, errors.New("unauthorized"), http.StatusUnauthorized)
 			return
 		}
 		stored, exists := allowedUsers[username]
 		if !exists {
-			httpError(r.Context(), w, errors.New("Unauthorized"), http.StatusUnauthorized)
+			httpError(r.Context(), w, errors.New("unauthorized"), http.StatusUnauthorized)
 			return
 		}
 		ok, err := s.validatePassword(password, stored)
@@ -47,7 +47,7 @@ func (s *server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		if !ok {
-			httpError(r.Context(), w, errors.New("Unauthorized"), http.StatusUnauthorized)
+			httpError(r.Context(), w, errors.New("unauthorized"), http.StatusUnauthorized)
 			return
 		}
 		ctx := r.Context()
