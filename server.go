@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -103,7 +104,14 @@ func httpError(ctx context.Context, w http.ResponseWriter, err error, status int
 	if logCtx, ok := ctx.Value(logContextKey).(*LogContext); ok {
 		logCtx.Error = err
 	}
-	http.Error(w, err.Error(), status)
+	var msg string
+	if status == 401 || status == 403 || status == 500 {
+		log.Printf("%d; %s", status, err.Error())
+		msg = http.StatusText(status)
+	} else {
+		msg = err.Error()
+	}
+	http.Error(w, msg, status)
 }
 
 type server struct {
