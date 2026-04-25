@@ -46,6 +46,7 @@ func main() {
 }
 
 func initializeLogger() (*slog.Logger, closeFunc, error) {
+	env := os.Getenv("ENV")
 	logName := os.Getenv("LINKO_LOG_FILE")
 
 	var logClose closeFunc
@@ -69,6 +70,9 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 		//	return nil, nil, err
 		//}
 		//logFileWriter := bufio.NewWriterSize(logFile, 8192)
+		if env == "dev" {
+			os.Remove(logName) //this line is used in development to replace the log file
+		}
 		logFileWriter := &lumberjack.Logger{
 			Filename:   logName,
 			MaxSize:    1,
@@ -94,7 +98,6 @@ func initializeLogger() (*slog.Logger, closeFunc, error) {
 	}
 
 	// Set information to print with logger
-	env := os.Getenv("ENV")
 	hostname, _ := os.Hostname()
 	logger = logger.With(
 		slog.String("git_sha", build.GitSHA),
