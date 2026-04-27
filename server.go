@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"boot.dev/linko/internal/store"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type spyReadCloser struct {
@@ -144,10 +145,13 @@ func newServer(store store.Store, port int, cancel context.CancelFunc, logger *s
 
 	s.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
-		Handler: requestLogger(logger)(requestID()(mux)),
+		Handler: metricsMiddleware(
+			requestLogger(logger)(requestID()(mux)),
+		),
 	}
 
 	mux.HandleFunc("GET /", s.handlerIndex)
+	mux.Handle("GET /metrics", promhttp.Handler())
 	mux.Handle("POST /api/login", s.authMiddleware(http.HandlerFunc(s.handlerLogin)))
 	mux.Handle("POST /api/shorten", s.authMiddleware(http.HandlerFunc(s.handlerShortenLink)))
 	mux.Handle("GET /api/stats", s.authMiddleware(http.HandlerFunc(s.handlerStats)))
