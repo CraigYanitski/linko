@@ -164,18 +164,31 @@ func replaceAttr(groups []string, a slog.Attr) slog.Attr {
 }
 
 func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir string) int {
+	tracerCloser, err := initTracing(context.Background())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize tracer: %v\n", err)
+		return 1
+	}
+	defer func() {
+		err = tracerCloser(context.Background())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to close tracer: %v\n", err)
+		}
+	}()
 	logger, closer, err := initializeLogger()
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+		return 1
 	}
 	defer func() {
 		err = closer()
 		if err != nil {
-			os.Stderr.WriteString(err.Error())
+			fmt.Fprintf(os.Stderr, "Failed to close logger: %v\n", err)
 		}
 	}()
-	if err = closer(); err != nil {
-		return 1
-	}
+	// if err = closer(); err != nil {
+	// 	return 1
+	// }
 
 	st, err := store.New(dataDir, logger)
 	if err != nil {

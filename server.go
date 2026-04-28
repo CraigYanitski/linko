@@ -16,6 +16,7 @@ import (
 
 	"boot.dev/linko/internal/store"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 type spyReadCloser struct {
@@ -144,11 +145,15 @@ func newServer(store store.Store, port int, cancel context.CancelFunc, logger *s
 		cancel: cancel,
 	}
 
+	// successively add middleware to root handler
+	requestIDHandler := requestID()(mux)
+	loggerHandler := requestLogger(logger)(requestIDHandler)
+	metricsHandler := metricsMiddleware(loggerHandler)
+	tracingHandler := otelhttp.NewHandler(metricsHandler, "http.server")
+
 	s.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
-		Handler: metricsMiddleware(
-			requestLogger(logger)(requestID()(mux)),
-		),
+		Handler: tracingHandler,
 	}
 
 	mux.HandleFunc("GET /", s.handlerIndex)
